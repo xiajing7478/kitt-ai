@@ -1,5 +1,6 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 
@@ -26,5 +27,12 @@ export class AuthController {
     // JWT 基础版登出不需要访问数据库。
     // 服务端返回成功提示，前端删除本地 token 即可完成退出登录。
     return this.authService.logout();
+  }
+
+  @Post('forgot-password')
+  forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    // 忘记密码基础实现：前端同时提交用户名 + 邮箱 + 新密码。
+    // 服务端校验用户名和邮箱是否属于同一账号，通过后重置密码。
+    return this.authService.forgotPassword(forgotPasswordDto);
   }
 }

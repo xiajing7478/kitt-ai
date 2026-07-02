@@ -4,8 +4,9 @@
   "description": "NestJS backend for KITT AI",
   "main": "dist/main.js",
   "scripts": {
-    "start": "nest start --port 5000",
+    "start": "nest start --watch",
     "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main.js",
     "build": "nest build",
     "typecheck": "tsc --noEmit",

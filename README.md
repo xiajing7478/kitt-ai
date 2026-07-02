@@ -182,8 +182,8 @@ pnpm add -D @types/passport-jwt @types/bcrypt
 DATABASE_HOST=localhost
 DATABASE_PORT=5432
 DATABASE_NAME=kitt
-DATABASE_USER=root
-DATABASE_PASSWORD=123456
+DATABASE_USER=postgres
+DATABASE_PASSWORD=andy7478
 JWT_SECRET=请替换成足够长的随机字符串
 JWT_EXPIRES_IN=2h
 ```
@@ -278,8 +278,8 @@ export const databaseProvider = {
       host: configService.get<string>('DATABASE_HOST', 'localhost'),
       port: Number(configService.get<string>('DATABASE_PORT', '5432')),
       database: configService.get<string>('DATABASE_NAME', 'kitt'),
-      user: configService.get<string>('DATABASE_USER', 'root'),
-      password: configService.get<string>('DATABASE_PASSWORD', '123456'),
+      user: configService.get<string>('DATABASE_USER', 'postgres'),
+      password: configService.get<string>('DATABASE_PASSWORD', 'andy7478'),
     });
   },
 };

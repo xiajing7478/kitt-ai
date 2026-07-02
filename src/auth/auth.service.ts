@@ -1,9 +1,10 @@
-import { ConflictException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import type { Pool } from 'pg';
 import { DATABASE_POOL } from '../database/database.provider';
 import type { SafeUser, UserRecord } from '../users/types/user-record.type';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import type { JwtPayload } from './types/jwt-user.type';
@@ -95,6 +96,39 @@ export class AuthService {
     // 所以基础版登出只需要前端删除本地保存的 accessToken。
     // 如果后续需要服务端强制 token 失效，可以增加 token 黑名单表或 refresh token 机制。
     return { message: '退出成功，请前端删除本地 accessToken' };
+  }
+
+  async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
+    const { username, email, newPassword } = forgotPasswordDto;
+
+    // 忘记密码流程要求前端同时提供用户名和邮箱。
+    // 只有当两者都能在同一条记录上匹配到时，才允许重置密码。
+    // 这种设计是一个折中方案：真正生产环境建议改为邮箱验证码或找回链接。
+    const result = await this.pool.query<Pick<UserRecord, 'id' | 'is_active'>>(
+      'SELECT id, is_active FROM users WHERE username = $1 AND email = $2 LIMIT 1',
+      [username, email],
+    );
+
+    const user = result.rows[0];
+
+    if (!user) {
+      throw new NotFoundException('用户名和邮箱不匹配，无法重置密码');
+    }
+
+    if (!user.is_active) {
+      throw new UnauthorizedException('账号已被禁用，无法重置密码');
+    }
+
+    // 新密码使用 bcrypt 重新哈希后再写入数据库。
+    // updated_at 同步刷新，方便后续做安全审计。
+    const newPasswordHash = await bcrypt.hash(newPassword, 12);
+
+    await this.pool.query('UPDATE users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [
+      newPasswordHash,
+      user.id,
+    ]);
+
+    return { message: '密码重置成功，请使用新密码登录' };
   }
 
   private async signAccessToken(userId: number, username: string) {
