@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import type { Readable } from 'stream';
+import { ConversationsService } from '../conversations/conversations.service';
 
 type DashScopeStreamChunk = {
   output?: {
@@ -15,13 +16,59 @@ export class ChatService {
 
   // ConfigService 来自 @nestjs/config，会自动读取 .env 和 process.env 中的环境变量。
   // 这里用它读取 DASHSCOPE_API_KEY，避免把密钥写死在代码仓库里。
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly conversationsService: ConversationsService,
+  ) {}
 
   async *streamChat(message: string): AsyncGenerator<string> {
+    // 保留原有接口，调用内部方法实现
+    return yield* this.streamFromDashScope([{ role: 'user', content: message }]);
+  }
+
+  async *streamWithPersistence(
+    userId: number,
+    conversationId: number | undefined,
+    userContent: string,
+  ): AsyncGenerator<string> {
+    let currentConversationId: number;
+
+    if (conversationId) {
+      // 会话ID已存在，先校验会话归属
+      await this.conversationsService.ensureOwnership(userId, conversationId);
+      currentConversationId = conversationId;
+    } else {
+      // 会话ID不存在，创建新会话
+      const newConv = await this.conversationsService.createConversation(userId);
+      currentConversationId = newConv.id;
+    }
+
+    // 先保存用户消息到数据库
+    await this.conversationsService.addMessage(userId, currentConversationId, 'user', userContent);
+    // 自动设置会话标题（如果标题为空）
+    await this.conversationsService.autoSetTitleIfNeeded(userId, currentConversationId, userContent);
+
+    // 获取会话内所有历史消息，用于构建通义千问的上下文
+    const historyMessages = await this.conversationsService.getHistoryMessages(currentConversationId);
+
+    // 用于累积AI的完整回复
+    let aiReply = '';
+
+    // 调用通义千问获取流式回复
+    for await (const text of this.streamFromDashScope(historyMessages)) {
+      aiReply += text;
+      yield text;
+    }
+
+    // 流结束后，把AI的完整回复保存到数据库
+    await this.conversationsService.addMessage(userId, currentConversationId, 'assistant', aiReply);
+  }
+
+  private async *streamFromDashScope(
+    messages: Array<{ role: string; content: string }>,
+  ): AsyncGenerator<string> {
     const apiKey = this.configService.get<string>('DASHSCOPE_API_KEY');
 
-    // 原项目里把通义千问 API Key 写在 server.js 中，这样有泄露风险。
-    // NestJS 版本改为从环境变量读取：DASHSCOPE_API_KEY=你的密钥。
     if (!apiKey) {
       throw new Error('缺少 DASHSCOPE_API_KEY 环境变量');
     }
@@ -31,7 +78,7 @@ export class ChatService {
       {
         model: 'qwen-turbo',
         input: {
-          messages: [{ role: 'user', content: message }],
+          messages,
         },
         parameters: {
           stream: true,
@@ -71,16 +118,6 @@ export class ChatService {
           yield text;
         }
       }
-    }
-  }
-
-  private extractTextFromChunk(jsonText: string): string {
-    try {
-      const chunk = JSON.parse(jsonText) as DashScopeStreamChunk;
-      return chunk.output?.text ?? '';
-    } catch {
-      // 流式接口偶尔可能出现非 JSON 片段，直接忽略即可，避免中断整个 SSE 连接。
-      return '';
     }
   }
 
@@ -127,5 +164,14 @@ export class ChatService {
     }
 
     return -1;
+  }
+
+  private extractTextFromChunk(jsonText: string): string {
+    try {
+      const chunk = JSON.parse(jsonText) as DashScopeStreamChunk;
+      return chunk.output?.text ?? '';
+    } catch {
+      return '';
+    }
   }
 }

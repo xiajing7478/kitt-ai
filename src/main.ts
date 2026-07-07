@@ -20,7 +20,7 @@ async function bootstrap() {
   );
 
   // PORT 支持通过环境变量配置，方便本地开发、服务器部署或 Docker 部署时修改端口。
-  // 如果没有配置 PORT，就沿用原项目的 4000 端口，减少前端联调成本。
+  // 如果没有配置 PORT，就使用 4000 端口。
   const port = Number(process.env.PORT ?? 4000);
 
   // 开启跨域访问。后续 React 前端独立成新项目后，浏览器才能从前端开发端口请求这个后端。

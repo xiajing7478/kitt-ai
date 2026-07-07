@@ -54,7 +54,7 @@
     try {
       // 2. 发起 POST 请求
       console.log('发送请求到服务器');
-      const res = await fetch('http://localhost:4000/api/chat', {
+      const res = await fetch('http://localhost:5002/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message })

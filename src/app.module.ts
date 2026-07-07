@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { ChatModule } from './chat/chat.module';
+import { ConversationsModule } from './conversations/conversations.module';
 import { DatabaseModule } from './database/database.module';
 import { UsersModule } from './users/users.module';
 
@@ -26,8 +27,11 @@ import { UsersModule } from './users/users.module';
     // 这些接口都会使用 JwtAuthGuard，必须登录后才能访问。
     UsersModule,
 
+    // ConversationsModule 提供会话管理接口。
+    ConversationsModule,
+
     // ChatModule 是聊天能力的功能模块。
-    // 当前它包含 /api/chat 接口，以及调用通义千问流式输出的业务逻辑。
+    // 包含 /api/chat 接口，以及调用通义千问流式输出的业务逻辑。
     ChatModule,
   ],
 })
